@@ -118,6 +118,27 @@ async def filter_history(
     except Exception as e:
         raise HTTPException(status_code=500, detail="Unable to retrieve history. Please try again later.")
 
+
+# main.py
+@app.get("/api/logs/personal")
+async def fetch_personalized_logs(uid: str):
+    # MongoDB query jo client_id filter karegi
+    cursor = collection.find({"client_id": uid}).sort("timestamp", -1)
+    logs = await cursor.to_list(length=100)
+    
+    # MongoDB IDs ko string mein convert karna
+    for log in logs:
+        log["_id"] = str(log["_id"])
+    return logs
+
+@app.post("/api/logs/archive")
+async def store_search_snapshot(data: dict):
+    # Search history save karte waqt client_id bhi save karein
+    result = await collection.insert_one(data)
+    return {"status": "archived", "id": str(result.inserted_id)}
+
+
+
 @app.get("/api/history")
 async def get_history():
     try:

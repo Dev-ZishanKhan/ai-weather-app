@@ -94,7 +94,15 @@ export default function Home() {
       setError(errorMsg);
     }
   };
-
+// page.tsx ke useEffect mein ye add karein
+useEffect(() => {
+  let browserId = localStorage.getItem('client_token');
+  if (!browserId) {
+    // Aik unique random ID generate karein
+    browserId = 'client_' + Math.random().toString(36).substring(2, 11);
+    localStorage.setItem('client_token', browserId);
+  }
+}, []);
   const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!city.trim()) {

@@ -230,8 +230,8 @@ Before you begin, ensure you have the following installed:
 
 ### **1. Clone the Repository**
 ```bash
-git clone https://github.com/yourusername/weather-intelligence.git
-cd weather-intelligence
+git clone https://github.com/Dev-ZishanKhan/ai-weather-app
+cd ai-weather-app
 ```
 
 ### **2. Backend Setup**
@@ -785,8 +785,8 @@ The **Product Manager Accelerator** is a premier program designed to help profes
 
 ```bash
 # 1. Clone repository
-git clone <your-repo-url>
-cd weather-intelligence
+git clone <https://github.com/Dev-ZishanKhan/ai-weather-app >
+cd ai-weather-app
 
 # 2. Setup backend
 cd backend

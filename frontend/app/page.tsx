@@ -65,6 +65,16 @@ export default function Home() {
     }
   }, [error]);
 
+//   // page.tsx ke useEffect mein ye add karein
+// useEffect(() => {
+//   let browserId = localStorage.getItem('client_token');
+//   if (!browserId) {
+//     // Aik unique random ID generate karein
+//     browserId = 'client_' + Math.random().toString(36).substring(2, 11);
+//     localStorage.setItem('client_token', browserId);
+//   }
+// }, []);
+
   useEffect(() => {
     if (successMessage) {
       const timer = setTimeout(() => setSuccessMessage(''), 3000);
@@ -72,15 +82,17 @@ export default function Home() {
     }
   }, [successMessage]);
 
-  const loadHistory = async () => {
-    try {
-      const data = await getHistory();
-      setHistory(data);
-    } catch (err: any) {
-      const errorMsg = err.response?.data?.detail || "Unable to load search history. Please refresh the page.";
-      console.error("History fetch failed", errorMsg);
-    }
-  };
+ // Ab ye function 'uid' accept karega
+const loadHistory = async (uid: string | null) => {
+  try {
+    // getHistory ko uid pass karain taake backend sirf aapka data bhejay
+    const data = await getHistory(uid); 
+    setHistory(data);
+  } catch (err: any) {
+    const errorMsg = err.response?.data?.detail || "Unable to load search history. Please refresh the page.";
+    console.error("History fetch failed", errorMsg);
+  }
+};
 
   const applyFilters = async () => {
     try {
@@ -94,59 +106,61 @@ export default function Home() {
       setError(errorMsg);
     }
   };
-// page.tsx ke useEffect mein ye add karein
-useEffect(() => {
-  let browserId = localStorage.getItem('client_token');
-  if (!browserId) {
-    // Aik unique random ID generate karein
-    browserId = 'client_' + Math.random().toString(36).substring(2, 11);
-    localStorage.setItem('client_token', browserId);
+
+ const handleSearch = async (e: React.FormEvent) => {
+  e.preventDefault();
+  if (!city.trim()) {
+    setError("Please enter a city name, zip code, or coordinates.");
+    return;
   }
-}, []);
-  const handleSearch = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!city.trim()) {
-      setError("Please enter a city name, zip code, or coordinates.");
-      return;
+
+  // --- ADDED: Retrieve Unique ID from Local Storage ---
+  const browserId = localStorage.getItem('client_token');
+  // ----------------------------------------------------
+  
+  setShowExport(false);
+  setLoading(true);
+  setError('');
+
+  try {
+    // UPDATED: Passing browserId to getWeather
+    const weatherData = await getWeather(city, browserId);
+    setWeather(weatherData);
+
+    const forecastData = await getForecast(weatherData.city);
+    const dailyData = forecastData.list.filter((item: any) => 
+      item.dt_txt.includes("12:00:00")
+    ).slice(0, 5);
+    setForecast(dailyData);
+
+    // UPDATED: Load history only for this browserId
+    await loadHistory(browserId);
+    
+    setSuccessMessage(`Weather data loaded for ${weatherData.city}`);
+  } catch (err: any) {
+    // --- Error messages (Untouched as requested) ---
+    let errorMessage = "Unable to fetch weather data. Please try again.";
+    
+    if (err.response?.data?.detail) {
+      errorMessage = err.response.data.detail;
+    } else if (err.response?.status === 404) {
+      errorMessage = "Location not found. Please check the spelling and try again.";
+    } else if (err.response?.status === 503 || err.response?.status === 504) {
+      errorMessage = "Weather service temporarily unavailable. Please check your internet connection and try again.";
+    } else if (err.code === 'ERR_NETWORK') {
+      errorMessage = "Network error. Please check your internet connection.";
     }
     
-    // Close export dropdown if open
-    setShowExport(false);
-    
-    setLoading(true);
-    setError('');
-    try {
-      const weatherData = await getWeather(city);
-      setWeather(weatherData);
+    setError(errorMessage);
+    setWeather(null);
+    setForecast([]);
+  } finally { 
+    setLoading(false); 
+  }
+};
 
-      const forecastData = await getForecast(weatherData.city);
-      const dailyData = forecastData.list.filter((item: any) => 
-        item.dt_txt.includes("12:00:00")
-      ).slice(0, 5);
-      setForecast(dailyData);
 
-      await loadHistory();
-      setSuccessMessage(`Weather data loaded for ${weatherData.city}`);
-    } catch (err: any) {
-      let errorMessage = "Unable to fetch weather data. Please try again.";
-      
-      if (err.response?.data?.detail) {
-        errorMessage = err.response.data.detail;
-      } else if (err.response?.status === 404) {
-        errorMessage = "Location not found. Please check the spelling and try again.";
-      } else if (err.response?.status === 503 || err.response?.status === 504) {
-        errorMessage = "Weather service temporarily unavailable. Please check your internet connection and try again.";
-      } else if (err.code === 'ERR_NETWORK') {
-        errorMessage = "Network error. Please check your internet connection.";
-      }
-      
-      setError(errorMessage);
-      setWeather(null);
-      setForecast([]);
-    } finally { 
-      setLoading(false); 
-    }
-  };
+
 
   const handleCurrentLocation = () => {
     if (!navigator.geolocation) {

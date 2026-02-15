@@ -35,7 +35,7 @@ class NoteUpdate(BaseModel):
 
 # --- 2.1 CREATE & UPSERT (No Duplicates) ---
 @app.get("/api/weather/{query}")
-async def get_weather(query: str):
+async def get_weather(query: str,uid: str = None):
     query = query.strip()
     url = ""
     
@@ -67,19 +67,21 @@ async def get_weather(query: str):
                 "city": data["name"],
                 "temp": data["main"]["temp"],
                 "description": data["weather"][0]["description"],
+                "client_id": uid,
                 "humidity": data["main"]["humidity"],
                 "wind_speed": data.get("wind", {}).get("speed", 0),
                 "icon": data["weather"][0]["icon"],
                 "timestamp": datetime.now()
             }
+            await db.weather_history.insert_one(weather_data)
             
             # Upsert: Prevent duplicate cities
             await collection.update_one(
-                {"city": data["name"]},
+                {"city": data["name"],"client_id": uid},
                 {"$set": weather_data, "$setOnInsert": {"note": ""}},
                 upsert=True
             )
-            record = await collection.find_one({"city": data["name"]})
+            record = await collection.find_one({"city": data["name"],"client_id": uid})
             record["_id"] = str(record["_id"])
             return record
         except httpx.TimeoutException:
@@ -89,12 +91,12 @@ async def get_weather(query: str):
 
 # --- NEW: 2.1 READ with DATE RANGE FILTER ---
 @app.get("/api/history/filter")
-async def filter_history(
+async def filter_history(uid: str,
     start_date: Optional[str] = None, 
     end_date: Optional[str] = None,
     city: Optional[str] = None
 ):
-    query = {}
+    query = {"client_id": uid}
     if city:
         query["city"] = {"$regex": city, "$options": "i"}
     
@@ -140,9 +142,10 @@ async def store_search_snapshot(data: dict):
 
 
 @app.get("/api/history")
-async def get_history():
+async def get_history(uid: str = None):
+    if not uid: return []
     try:
-        cursor = collection.find().sort("timestamp", -1).limit(20)
+        cursor = collection.find({"client_id": uid}).sort("timestamp", -1).limit(20)
         history = []
         async for doc in cursor:
             doc["_id"] = str(doc["_id"])
@@ -170,12 +173,12 @@ async def update_note(record_id: str, update: NoteUpdate):
 
 # [DELETE]
 @app.delete("/api/history/{record_id}")
-async def delete_record(record_id: str):
+async def delete_record(record_id: str,uid: str = Query(...)):
     if not ObjectId.is_valid(record_id): 
         raise HTTPException(status_code=400, detail="Invalid record ID format.")
     
     try:
-        result = await collection.delete_one({"_id": ObjectId(record_id)})
+        result = await collection.delete_one({"_id": ObjectId(record_id),"client_id": uid})
         if result.deleted_count == 0:
             raise HTTPException(status_code=404, detail="Record not found. It may have already been deleted.")
         return {"message": "Record deleted successfully"}
@@ -217,9 +220,9 @@ async def get_forecast(query: str):
 
 # [EXPORT] Dynamic Data Export (Requirement 2.3)
 @app.get("/api/export/{fmt}")
-async def export_data(fmt: str):
+async def export_data(fmt: str,uid: str = Query(...)):
     try:
-        cursor = collection.find().sort("timestamp", -1)
+        cursor = collection.find({"client_id": uid}).sort("timestamp", -1)
         data = await cursor.to_list(length=None)
         if not data:
             raise HTTPException(status_code=404, detail="No data available to export. Search for locations first.")
